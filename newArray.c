@@ -20,16 +20,23 @@ emacs_module_init (struct emacs_runtime *runtime)
     //     return 2; /* Unknown or unsupported version.  */
 
 
-    // arranges for a C function make_array to be callable as make-array from Lisp
-    // an Emacs function created from the C function func
-    emacs_value func = env->make_function (env, 4, 4,
-                                            make_array, "Make array with data type, dimension, sizes, and initial value", NULL);
-    // bind the Lisp function to a symbol, so that Lisp code could call your function by name
-    emacs_value symbol = env->intern (env, "make-array");
-    emacs_value args[] = {symbol, func};
+    /*
+        Arranges for a C function make_array to be callable as make-array from Lisp
+    */
+
+    // An Emacs function created from the C function make_array_wrapper
+    emacs_value func = env->make_function (env, 2, 2,
+                                            make_array_wrapper, "Make array sizes, and initial value", NULL);
+    
+    // Bind the Lisp function to a symbol, so that Lisp code could call function by symbol
+    emacs_value function_symbol = env->intern (env, "make-array");
+    emacs_value args[] = { function_symbol, func };
     env->funcall (env, env->intern (env, "defalias"), 2, args);
 
-
+    // Indicates that the module can be used in other Emacs Lisp code
+    emacs_value module_symbol = env->intern(env, "multidimensional-array");
+    emacs_value provide_args[] = { module_symbol };
+    env->funcall(env, env->intern(env, "provide"), 1, provide_args);
     return 0;
 }
 
