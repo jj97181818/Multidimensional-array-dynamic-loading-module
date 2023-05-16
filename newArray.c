@@ -6,6 +6,28 @@
 
 int plugin_is_GPL_compatible;
 
+// defun make-array (dims &optional val)
+// args[0]: dims, args[1]: val
+// elisp type -> C type, and then C type -> elisp type
+static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data)
+{
+    emacs_value safe_length = env->funcall (env, env->intern (env, "safe-length"), 1, &args[0]);
+    int dim = env->extract_integer(env, safe_length);
+
+    int *sizes = (int*)malloc(dim * sizeof(int));
+    
+    for (int i = 0; i < dim; i++) {
+        emacs_value index = env->make_integer(env, i);
+        emacs_value nth_args[] = {index, args[0]};
+        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
+        sizes[i] = env->extract_integer(env, nth);
+    }
+    
+    // void* initial_val = env->get_user_ptr(env, args[1]);
+
+    return env->make_integer (env, 99);
+}
+
 int
 emacs_module_init (struct emacs_runtime *runtime)
 {
