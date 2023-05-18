@@ -134,6 +134,41 @@ void free_array(void *arr) {
     free(array);
 }
 
+// defun ref-array (arr coords)
+// args[0]: arr ptr(emacs_val), args[1]: coords
+static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data) {
+
+    Array *array = (Array*)(env->get_user_ptr(env, args[0]));
+    
+    // Get index
+    emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[1]);
+    int dim = env->extract_integer(env, safe_length);
+
+    int *pos = (int*)malloc(dim * sizeof(int));
+    
+    for (int i = 0; i < dim; i++) {
+        emacs_value index = env->make_integer(env, i);
+        emacs_value nth_args[] = {index, args[1]};
+        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
+        pos[i] = env->extract_integer(env, nth);
+    }
+
+    void *val = ref_array(array, pos);
+    emacs_value result;
+    if (array->type == INT) {
+        result = env->make_integer(env, *((int*)val));
+    }
+    else if (array->type == DOUBLE) {
+        result = env->make_float(env, *((float*)val));
+    }
+    else if (array->type == STRING) {
+        result = env->make_string(env, val, strlen(val));
+    }
+    else { // EMACS_VALUE
+        result = (emacs_value)val;
+    }
+    return result;
+}
 
 // defun make-array (dims &optional val)
 // args[0]: dims, args[1]: val
@@ -223,9 +258,12 @@ int emacs_module_init (struct emacs_runtime *runtime)
     emacs_value args[] = { function_symbol, func };
     env->funcall (env, env->intern (env, "defalias"), 2, args);
 
-    free_array(int_array);
-    free_array(double_array);
-    free_array(string_array);
+    /* Arranges for a C function ref_array to be callable as ref-array from Lisp */
+    emacs_value ref_array_func = env->make_function (env, 2, 2,
+                                            ref_array_wrapper, "Reference specific position of array", NULL);
+    emacs_value ref_array_symbol = env->intern (env, "ref-array");
+    emacs_value ref_array_args[] = { ref_array_symbol, ref_array_func };
+    env->funcall (env, env->intern (env, "defalias"), 2, ref_array_args);
 
     // Indicates that the module can be used in other Emacs Lisp code
     emacs_value module_symbol = env->intern(env, "multidimensional-array");
