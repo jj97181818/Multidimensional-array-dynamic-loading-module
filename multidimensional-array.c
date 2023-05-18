@@ -118,8 +118,11 @@ void set_array(emacs_env *env, Array *array, int *index, void *val) {
     }
 }
 
-void free_array(void *arr) {
+void free_array_finalizer(void *arr) {
     Array *array = (Array*)arr;
+    if (array->type == EMACS_VALUE) {
+        return;
+    }
     if (array->type == STRING) {
         int total_size = 1;
         for (int i = 0; i < array->dim; i++) {
@@ -129,13 +132,19 @@ void free_array(void *arr) {
             free(((char**)array->contents)[i]);
         }
     }
-    // else if (array->type == EMACS_VALUE) {
-    //     int total_size = 1;
-    //     for (int i = 0; i < total_size; i++) {
-    //         emacs_value val = ((emacs_value*)array->contents)[i];
-            // env->free_global_ref(env, val);
-        // }
-    // }
+    free(array->contents);
+    free(array->sizes);
+    free(array);
+}
+
+void free_array(emacs_env *env, void *arr) {
+    Array *array = (Array*)arr;
+    
+    int total_size = 1;
+    for (int i = 0; i < total_size; i++) {
+        emacs_value val = ((emacs_value*)array->contents)[i];
+        env->free_global_ref(env, val);
+    }
     free(array->contents);
     free(array->sizes);
     free(array);
@@ -217,6 +226,17 @@ static emacs_value set_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     return val;
 }
 
+// defun free-array (arr)
+// args[0]: arr
+static emacs_value free_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data) {
+    Array *array = (Array*)(env->get_user_ptr(env, args[0]));
+    if (array->type != EMACS_VALUE) {
+        return env->make_integer(env, -1);
+    }
+    free_array(env, array);
+    return env->make_integer(env, 0);
+}
+
 // defun make-array (dims &optional val)
 // args[0]: dims, args[1]: val
 static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data)
@@ -266,7 +286,7 @@ static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_va
         C_array = make_array(env, EMACS_VALUE, dim, sizes, initial_val);
     }
 
-    emacs_value result = env->make_user_ptr(env, &free_array, C_array);
+    emacs_value result = env->make_user_ptr(env, &free_array_finalizer, C_array);
     free(val_type);
     free(sizes);
 
@@ -318,6 +338,13 @@ int emacs_module_init (struct emacs_runtime *runtime)
     emacs_value set_array_symbol = env->intern (env, "set-array");
     emacs_value set_array_args[] = { set_array_symbol, set_array_func };
     env->funcall (env, env->intern (env, "defalias"), 2, set_array_args);
+
+    /* Arranges for a C function set_array to be callable as set-array from Lisp */
+    emacs_value free_array_func = env->make_function (env, 1, 1,
+                                            free_array_wrapper, "Free an array whose element type is emacs_value", NULL);
+    emacs_value free_array_symbol = env->intern (env, "free-array");
+    emacs_value free_array_args[] = { free_array_symbol, free_array_func };
+    env->funcall (env, env->intern (env, "defalias"), 2, free_array_args);
 
     // Indicates that the module can be used in other Emacs Lisp code
     emacs_value module_symbol = env->intern(env, "multidimensional-array");
