@@ -6,69 +6,11 @@
 
 int plugin_is_GPL_compatible;
 
-// defun make-array (dims &optional val)
-// args[0]: dims, args[1]: val
-// elisp type -> C type, and then C type -> elisp type
-static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data)
-{
-    emacs_value safe_length = env->funcall (env, env->intern (env, "safe-length"), 1, &args[0]);
-    int dim = env->extract_integer(env, safe_length);
-
-    int *sizes = (int*)malloc(dim * sizeof(int));
-    
-    for (int i = 0; i < dim; i++) {
-        emacs_value index = env->make_integer(env, i);
-        emacs_value nth_args[] = {index, args[0]};
-        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
-        sizes[i] = env->extract_integer(env, nth);
-    }
-    
-    emacs_value type = type_of(env, args[1]);
-    // string type = env->copy_string_contents(env, arg, char *buf, ptrdiff_t *len);
-
-    void* initial_val = env->get_user_ptr(env, args[1]);
-
-    return env->make_integer (env, 99);
-}
-
-int
-emacs_module_init (struct emacs_runtime *runtime)
-{
-    emacs_env *env = runtime->get_environment (runtime);
-
-    
-    // if (env->size >= sizeof (struct emacs_env_26))
-    //     emacs_version = 26;  /* Emacs 26 or later.  */
-    // else if (env->size >= sizeof (struct emacs_env_25))
-    //     emacs_version = 25;
-    // else
-    //     return 2; /* Unknown or unsupported version.  */
-
-
-    /*
-        Arranges for a C function make_array to be callable as make-array from Lisp
-    */
-
-    // An Emacs function created from the C function make_array_wrapper
-    emacs_value func = env->make_function (env, 2, 2,
-                                            make_array_wrapper, "Make array sizes, and initial value", NULL);
-    
-    // Bind the Lisp function to a symbol, so that Lisp code could call function by symbol
-    emacs_value function_symbol = env->intern (env, "make-array");
-    emacs_value args[] = { function_symbol, func };
-    env->funcall (env, env->intern (env, "defalias"), 2, args);
-
-    // Indicates that the module can be used in other Emacs Lisp code
-    emacs_value module_symbol = env->intern(env, "multidimensional-array");
-    emacs_value provide_args[] = { module_symbol };
-    env->funcall(env, env->intern(env, "provide"), 1, provide_args);
-    return 0;
-}
-
 typedef enum {
     INT,
     DOUBLE,
-    STRING
+    STRING,
+    EMACS_VALUE
 } Type;
 
 typedef struct {
@@ -78,7 +20,7 @@ typedef struct {
     int *sizes;
 } Array;
 
-Array* make_array(Type type, int dim, int *sizes, void *initial_val) {
+Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_val) {
     Array *array = malloc(sizeof(Array));
     int total_size = 1;
 
@@ -110,9 +52,15 @@ Array* make_array(Type type, int dim, int *sizes, void *initial_val) {
             ((char**)array->contents)[i] = strdup((char*)initial_val);
         }
     }
+    else {
+        array->contents = malloc(sizeof(emacs_value) * total_size);
+        for (int i = 0; i < total_size; i++) {
+            emacs_value protected_val = env->make_global_ref(env, *(emacs_value*)initial_val);
+            ((emacs_value*)array->contents)[i] = protected_val;
+        }
+    }
     return array;
 }
-
 
 void* ref_array(Array *array, int *index){
     for (int i = 0; i < array->dim; i++) {
@@ -133,6 +81,9 @@ void* ref_array(Array *array, int *index){
     }
     else if (array->type == STRING) {
         return ((char**)array->contents)[target_index];
+    }
+    else if (array->type == EMACS_VALUE) {
+        return ((emacs_value*)array->contents)[target_index];
     }
     return NULL;
 }
@@ -160,9 +111,9 @@ void set_array(Array *array, int *index, void *val) {
     }
 }
 
-void free_array(Array *array) {
+void free_array(void *arr) {
+    Array *array = (Array*)arr;
     if (array->type == STRING) {
-        // 如果是字串型別，需要額外釋放每個字串的空間
         int total_size = 1;
         for (int i = 0; i < array->dim; i++) {
             total_size *= array->sizes[i];
@@ -171,25 +122,79 @@ void free_array(Array *array) {
             free(((char**)array->contents)[i]);
         }
     }
+    // else if (array->type == EMACS_VALUE) {
+    //     int total_size = 1;
+    //     for (int i = 0; i < total_size; i++) {
+    //         emacs_value val = ((emacs_value*)array->contents)[i];
+            // env->free_global_ref(env, val);
+        // }
+    // }
     free(array->contents);
     free(array->sizes);
     free(array);
 }
 
 
+// defun make-array (dims &optional val)
+// args[0]: dims, args[1]: val
+static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data)
+{
+    emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[0]);
+    int dim = env->extract_integer(env, safe_length);
 
-int main() {
-    int dim = 3;
-    int sizes[] = {2, 3, 4};
+    int *sizes = (int*)malloc(dim * sizeof(int));
+    
+    for (int i = 0; i < dim; i++) {
+        emacs_value index = env->make_integer(env, i);
+        emacs_value nth_args[] = {index, args[0]};
+        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
+        sizes[i] = env->extract_integer(env, nth);
+    }
+    
+    // Get the type of argument val
+    emacs_value type = env->funcall(env, env->intern(env, "type-of"), 1, &args[1]);
+    type = env->funcall(env, env->intern(env, "symbol-name"), 1, &type);
+    ptrdiff_t len;
 
-    int int_val = 1;
-    double double_val = 1.0;
-    char* string_val = "abc";
+    // Put the size of the type into len
+    env->copy_string_contents(env, type, NULL, &len);
+    char *val_type = (char*)malloc(len);
+    env->copy_string_contents(env, type, val_type, &len);
 
-    Array *int_array = make_array(INT, dim, sizes, &int_val);
-    Array *double_array = make_array(DOUBLE, dim, sizes, &double_val);
-    Array *string_array = make_array(STRING, dim, sizes, string_val);
+    emacs_value initial_val = args[1];
 
+    // Create C array
+    Array *C_array;
+    if (strcmp(val_type, "integer") == 0) {
+        int64_t integer_val = env->extract_integer(env, initial_val);
+        C_array = make_array(env, INT, dim, sizes, &integer_val);
+    }
+    else if (strcmp(val_type, "float") == 0) {
+        double double_val = env->extract_float(env, initial_val);
+        C_array = make_array(env, DOUBLE, dim, sizes, &double_val);
+    }
+    else if (strcmp(val_type, "string") == 0) {
+        ptrdiff_t len;
+        env->copy_string_contents(env, initial_val, NULL, &len);
+        char *string_val = (char*)malloc(len);
+        env->copy_string_contents(env, initial_val, string_val, &len);
+        C_array = make_array(env, STRING, dim, sizes, string_val);
+    }
+    else {
+        C_array = make_array(env, EMACS_VALUE, dim, sizes, &initial_val);
+    }
+
+    emacs_value result = env->make_user_ptr(env, &free_array, C_array);
+    free(val_type);
+    free(sizes);
+
+    return result;
+}
+
+int emacs_module_init (struct emacs_runtime *runtime)
+{
+    emacs_env *env = runtime->get_environment (runtime);
+    
     int_val = 2;
     set_array(int_array, (int[]){1, 1, 3}, &int_val);
     int *p = (int *)ref_array(int_array, (int[]){1, 1, 3});
@@ -208,10 +213,23 @@ int main() {
     printf("%d\n", ans1);
     printf("%f\n", ans2);
     printf("%s\n", ans3);
+    
+    /* Arranges for a C function make_array to be callable as make-array from Lisp */
+    // An Emacs function created from the C function make_array_wrapper
+    emacs_value func = env->make_function (env, 2, 2,
+                                            make_array_wrapper, "Make array sizes, and initial value", NULL);
+    // Bind the Lisp function to a symbol, so that Lisp code could call function by symbol
+    emacs_value function_symbol = env->intern (env, "make-array");
+    emacs_value args[] = { function_symbol, func };
+    env->funcall (env, env->intern (env, "defalias"), 2, args);
 
     free_array(int_array);
     free_array(double_array);
     free_array(string_array);
 
+    // Indicates that the module can be used in other Emacs Lisp code
+    emacs_value module_symbol = env->intern(env, "multidimensional-array");
+    emacs_value provide_args[] = { module_symbol };
+    env->funcall(env, env->intern(env, "provide"), 1, provide_args);
     return 0;
 }
