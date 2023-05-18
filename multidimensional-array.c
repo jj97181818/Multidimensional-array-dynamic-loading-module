@@ -55,7 +55,7 @@ Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_
     else {
         array->contents = malloc(sizeof(emacs_value) * total_size);
         for (int i = 0; i < total_size; i++) {
-            emacs_value protected_val = env->make_global_ref(env, *(emacs_value*)initial_val);
+            emacs_value protected_val = env->make_global_ref(env, initial_val);
             ((emacs_value*)array->contents)[i] = protected_val;
         }
     }
@@ -88,7 +88,7 @@ void* ref_array(Array *array, int *index){
     return NULL;
 }
 
-void set_array(Array *array, int *index, void *val) {
+void set_array(emacs_env *env, Array *array, int *index, void *val) {
     for (int i = 0; i < array->dim; i++) {
         if (index[i] < 0 || index[i] >= array->sizes[i]) {
             return;
@@ -108,6 +108,13 @@ void set_array(Array *array, int *index, void *val) {
     else if (array->type == STRING) {
         free(((char**)array->contents)[target_index]);
         ((char**)array->contents)[target_index] = strdup((char*)val);
+    }
+    else {
+        emacs_value old_val = ((emacs_value*)array->contents)[target_index];
+        env->free_global_ref(env, old_val);
+
+        emacs_value protected_val = env->make_global_ref(env, val);
+        ((emacs_value*)array->contents)[target_index] = protected_val;
     }
 }
 
@@ -170,6 +177,46 @@ static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     return result;
 }
 
+// defun set-array (arr coords val)
+// args[0]: arr, args[1]: coords, args[2]: val
+static emacs_value set_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data) {
+    Array *array = (Array*)(env->get_user_ptr(env, args[0]));
+    
+    // Get index
+    emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[1]);
+    int dim = env->extract_integer(env, safe_length);
+
+    int *pos = (int*)malloc(dim * sizeof(int));
+    
+    for (int i = 0; i < dim; i++) {
+        emacs_value index = env->make_integer(env, i);
+        emacs_value nth_args[] = {index, args[1]};
+        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
+        pos[i] = env->extract_integer(env, nth);
+    }
+
+    emacs_value val = args[2];
+    if (array->type == INT) {
+        int integer_val = env->extract_integer(env, val);
+        set_array(env, array, pos, &integer_val);
+    }
+    else if (array->type == DOUBLE) {
+        double double_val = env->extract_float(env, val);
+        set_array(env, array, pos, &double_val);
+    }
+    else if (array->type == STRING) {
+        ptrdiff_t len;
+        env->copy_string_contents(env, val, NULL, &len);
+        char *string_val = (char*)malloc(len);
+        env->copy_string_contents(env, val, string_val, &len);
+        set_array(env, array, pos, string_val);
+    }
+    else { // EMACS_VALUE
+        set_array(env, array, pos, val);
+    }
+    return val;
+}
+
 // defun make-array (dims &optional val)
 // args[0]: dims, args[1]: val
 static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data)
@@ -216,7 +263,7 @@ static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_va
         C_array = make_array(env, STRING, dim, sizes, string_val);
     }
     else {
-        C_array = make_array(env, EMACS_VALUE, dim, sizes, &initial_val);
+        C_array = make_array(env, EMACS_VALUE, dim, sizes, initial_val);
     }
 
     emacs_value result = env->make_user_ptr(env, &free_array, C_array);
@@ -264,6 +311,13 @@ int emacs_module_init (struct emacs_runtime *runtime)
     emacs_value ref_array_symbol = env->intern (env, "ref-array");
     emacs_value ref_array_args[] = { ref_array_symbol, ref_array_func };
     env->funcall (env, env->intern (env, "defalias"), 2, ref_array_args);
+
+    /* Arranges for a C function set_array to be callable as set-array from Lisp */
+    emacs_value set_array_func = env->make_function (env, 3, 3,
+                                            set_array_wrapper, "Set a value at a specific position of array", NULL);
+    emacs_value set_array_symbol = env->intern (env, "set-array");
+    emacs_value set_array_args[] = { set_array_symbol, set_array_func };
+    env->funcall (env, env->intern (env, "defalias"), 2, set_array_args);
 
     // Indicates that the module can be used in other Emacs Lisp code
     emacs_value module_symbol = env->intern(env, "multidimensional-array");
