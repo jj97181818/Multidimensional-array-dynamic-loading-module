@@ -36,14 +36,16 @@ Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_
     // put initial value
     if (type == INT) {
         array->contents = malloc(sizeof(int) * total_size);
+        int val = *((int*)initial_val);
         for (int i = 0; i < total_size; i++) {
-            ((int*)array->contents)[i] = *((int*)initial_val);
+            ((int*)array->contents)[i] = val;
         }
     }
     else if (type == DOUBLE) {
         array->contents = malloc(sizeof(double) * total_size);
+        double val = *((double*)initial_val);
         for (int i = 0; i < total_size; i++) {
-            ((double*)array->contents)[i] = *((double*)initial_val);
+            ((double*)array->contents)[i] = val;
         }
     }
     else if (type == STRING) {
@@ -62,10 +64,10 @@ Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_
     return array;
 }
 
-void* ref_array(Array *array, int *index){
+int convert_to_1d_index(Array *array, int *index) {
     for (int i = 0; i < array->dim; i++) {
         if (index[i] < 0 || index[i] >= array->sizes[i]) {
-            return NULL;
+            return -1;
         }
     }
     int target_index = 0, tmp = 1;
@@ -73,6 +75,12 @@ void* ref_array(Array *array, int *index){
         target_index += index[i] * tmp;
         tmp *= array->sizes[i];
     }
+    return target_index;
+}
+
+void* ref_array(Array *array, int *index){
+    int target_index = convert_to_1d_index(array, index);
+    if (target_index == -1) return NULL;
     if (array->type == INT) {
         return &((int*)array->contents)[target_index];
     }
@@ -89,16 +97,7 @@ void* ref_array(Array *array, int *index){
 }
 
 void set_array(emacs_env *env, Array *array, int *index, void *val) {
-    for (int i = 0; i < array->dim; i++) {
-        if (index[i] < 0 || index[i] >= array->sizes[i]) {
-            return;
-        }
-    }
-    int target_index = 0, tmp = 1;
-    for (int i = array->dim - 1; i >= 0; i--) {
-        target_index += index[i] * tmp;
-        tmp *= array->sizes[i];
-    }
+    int target_index = convert_to_1d_index(array, index);
     if (array->type == INT) {
         ((int*)array->contents)[target_index] = *((int*)val);
     }
@@ -160,7 +159,7 @@ static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[1]);
     int dim = env->extract_integer(env, safe_length);
 
-    int *pos = (int*)malloc(dim * sizeof(int));
+    int pos[dim];
     
     for (int i = 0; i < dim; i++) {
         emacs_value index = env->make_integer(env, i);
@@ -195,7 +194,7 @@ static emacs_value set_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[1]);
     int dim = env->extract_integer(env, safe_length);
 
-    int *pos = (int*)malloc(dim * sizeof(int));
+    int pos[dim];
     
     for (int i = 0; i < dim; i++) {
         emacs_value index = env->make_integer(env, i);
