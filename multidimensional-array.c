@@ -296,25 +296,6 @@ int emacs_module_init (struct emacs_runtime *runtime)
 {
     emacs_env *env = runtime->get_environment (runtime);
     
-    int_val = 2;
-    set_array(int_array, (int[]){1, 1, 3}, &int_val);
-    int *p = (int *)ref_array(int_array, (int[]){1, 1, 3});
-    int ans1 = *p;
-    
-    double_val = 2.0;
-    set_array(double_array, (int[]){1, 1, 3}, &double_val);
-    double *q = (double *)ref_array(double_array, (int[]){1, 1, 3});
-    double ans2 = *q;
-
-    string_val = "def";
-    set_array(string_array, (int[]){1, 1, 3}, string_val);
-    char *r = (char *)ref_array(string_array, (int[]){1, 1, 3});
-    char* ans3 = r;
-
-    printf("%d\n", ans1);
-    printf("%f\n", ans2);
-    printf("%s\n", ans3);
-    
     /* Arranges for a C function make_array to be callable as make-array from Lisp */
     // An Emacs function created from the C function make_array_wrapper
     emacs_value func = env->make_function (env, 2, 2,
