@@ -13,107 +13,125 @@ typedef enum {
     EMACS_VALUE
 } Type;
 
-typedef struct {
+typedef struct MultiDimArray Array;
+struct MultiDimArray {
     Type type;
     void *contents;
     int dim;
     int *sizes;
-} Array;
+    Array **subarray;
+};
+
+Array* make_nested_array(emacs_env *env, Type type, int dim, int level, int *sizes, void *initial_val) {
+    Array* array = malloc(sizeof(Array));
+    array->type = type;
+    array->dim = dim;
+    array->sizes = sizes;
+    array->subarray = NULL;
+    int size = sizes[level];
+
+    if (level == dim - 1) {
+        // put initial value
+        if (type == INT) {
+            array->contents = malloc(sizeof(int) * size);
+            int val = *((int*)initial_val);
+            for (int i = 0; i < size; i++) {
+                ((int*)array->contents)[i] = val;
+            }
+        }
+        else if (type == DOUBLE) {
+            array->contents = malloc(sizeof(double) * size);
+            double val = *((double*)initial_val);
+            for (int i = 0; i < size; i++) {
+                ((double*)array->contents)[i] = val;
+            }
+        }
+        else if (type == STRING) {
+            array->contents = malloc(sizeof(char*) * size);
+            for (int i = 0; i < size; i++) {
+                ((char**)array->contents)[i] = strdup((char*)initial_val);
+            }
+        }
+        else {
+            array->contents = malloc(sizeof(emacs_value) * size);
+            for (int i = 0; i < size; i++) {
+                emacs_value protected_val = env->make_global_ref(env, initial_val);
+                ((emacs_value*)array->contents)[i] = protected_val;
+            }
+        }
+    }
+    else {
+        array->subarray = malloc(sizeof(Array*) * size);
+        for (int i = 0; i < size; i++) {
+            array->subarray[i] = make_nested_array(env, type, dim, level + 1, sizes, initial_val);
+        }
+    }
+    return array;
+}
 
 Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_val) {
     Array *array = malloc(sizeof(Array));
-    int total_size = 1;
+    // int total_size = 1;
 
     array->type = type;
     array->dim = dim;
     array->sizes = malloc(dim * sizeof(int));
 
     for (int i = 0; i < dim; i++) {
-        total_size *= sizes[i];
+        // total_size *= sizes[i];
         array->sizes[i] = sizes[i];
     }
     
-    // put initial value
-    if (type == INT) {
-        array->contents = malloc(sizeof(int) * total_size);
-        int val = *((int*)initial_val);
-        for (int i = 0; i < total_size; i++) {
-            ((int*)array->contents)[i] = val;
-        }
-    }
-    else if (type == DOUBLE) {
-        array->contents = malloc(sizeof(double) * total_size);
-        double val = *((double*)initial_val);
-        for (int i = 0; i < total_size; i++) {
-            ((double*)array->contents)[i] = val;
-        }
-    }
-    else if (type == STRING) {
-        array->contents = malloc(sizeof(char*) * total_size);
-        for (int i = 0; i < total_size; i++) {
-            ((char**)array->contents)[i] = strdup((char*)initial_val);
-        }
-    }
-    else {
-        array->contents = malloc(sizeof(emacs_value) * total_size);
-        for (int i = 0; i < total_size; i++) {
-            emacs_value protected_val = env->make_global_ref(env, initial_val);
-            ((emacs_value*)array->contents)[i] = protected_val;
-        }
-    }
+    array = make_nested_array(env, type, dim, 0, sizes, initial_val);
+
     return array;
 }
 
-int convert_to_1d_index(Array *array, int *index) {
-    for (int i = 0; i < array->dim; i++) {
-        if (index[i] < 0 || index[i] >= array->sizes[i]) {
-            return -1;
+void* ref_array(Array *array, int *index, int level){
+    int target_index = index[level];
+    if (array->subarray == NULL) {
+        if (array->type == INT) {
+            return &((int*)array->contents)[target_index];
+        }
+        else if (array->type == DOUBLE) {
+            return &((double*)array->contents)[target_index];
+        }
+        else if (array->type == STRING) {
+            return ((char**)array->contents)[target_index];
+        }
+        else if (array->type == EMACS_VALUE) {
+            return ((emacs_value*)array->contents)[target_index];
         }
     }
-    int target_index = 0, tmp = 1;
-    for (int i = array->dim - 1; i >= 0; i--) {
-        target_index += index[i] * tmp;
-        tmp *= array->sizes[i];
-    }
-    return target_index;
-}
-
-void* ref_array(Array *array, int *index){
-    int target_index = convert_to_1d_index(array, index);
-    if (target_index == -1) return NULL;
-    if (array->type == INT) {
-        return &((int*)array->contents)[target_index];
-    }
-    else if (array->type == DOUBLE) {
-        return &((double*)array->contents)[target_index];
-    }
-    else if (array->type == STRING) {
-        return ((char**)array->contents)[target_index];
-    }
-    else if (array->type == EMACS_VALUE) {
-        return ((emacs_value*)array->contents)[target_index];
+    else {
+        return ref_array(array->subarray[target_index], index, level + 1);
     }
     return NULL;
 }
 
-void set_array(emacs_env *env, Array *array, int *index, void *val) {
-    int target_index = convert_to_1d_index(array, index);
-    if (array->type == INT) {
-        ((int*)array->contents)[target_index] = *((int*)val);
-    }
-    else if (array->type == DOUBLE) {
-        ((double*)array->contents)[target_index] = *((double*)val);
-    }
-    else if (array->type == STRING) {
-        free(((char**)array->contents)[target_index]);
-        ((char**)array->contents)[target_index] = strdup((char*)val);
+void set_array(emacs_env *env, Array *array, int *index, void *val, int level) {
+    int target_index = index[level];
+    if (array->subarray == NULL) {
+        if (array->type == INT) {
+            ((int*)array->contents)[target_index] = *((int*)val);
+        }
+        else if (array->type == DOUBLE) {
+            ((double*)array->contents)[target_index] = *((double*)val);
+        }
+        else if (array->type == STRING) {
+            free(((char**)array->contents)[target_index]);
+            ((char**)array->contents)[target_index] = strdup((char*)val);
+        }
+        else {
+            emacs_value old_val = ((emacs_value*)array->contents)[target_index];
+            env->free_global_ref(env, old_val);
+
+            emacs_value protected_val = env->make_global_ref(env, val);
+            ((emacs_value*)array->contents)[target_index] = protected_val;
+        }
     }
     else {
-        emacs_value old_val = ((emacs_value*)array->contents)[target_index];
-        env->free_global_ref(env, old_val);
-
-        emacs_value protected_val = env->make_global_ref(env, val);
-        ((emacs_value*)array->contents)[target_index] = protected_val;
+        set_array(env, array->subarray[target_index], index, val, level + 1);
     }
 }
 
@@ -122,31 +140,44 @@ void free_array_finalizer(void *arr) {
     if (array->type == EMACS_VALUE) {
         return;
     }
-    if (array->type == STRING) {
-        int total_size = 1;
-        for (int i = 0; i < array->dim; i++) {
-            total_size *= array->sizes[i];
+    if (array->subarray == NULL) {
+        if (array->type == STRING) {
+            int size = array->sizes[0];
+            for (int i = 0; i < size; i++) {
+                free(((char**)array->contents)[i]);
+            }
         }
-        for (int i = 0; i < total_size; i++) {
-            free(((char**)array->contents)[i]);
+        free(array->contents);
+    }
+    else {
+        int size = array->sizes[0];
+        for (int i = 0; i < size; i++) {
+            free_array_finalizer(array->subarray[i]);
         }
     }
-    free(array->contents);
     free(array->sizes);
     free(array);
 }
 
-void free_array(emacs_env *env, void *arr) {
-    Array *array = (Array*)arr;
-    
-    int total_size = 1;
-    for (int i = 0; i < total_size; i++) {
-        emacs_value val = ((emacs_value*)array->contents)[i];
-        env->free_global_ref(env, val);
+void free_array(emacs_env *env, Array *arr) {
+    if (arr->subarray == NULL) {
+        if (arr->type == EMACS_VALUE) {
+            int size = arr->sizes[0];
+            for (int i = 0; i < size; i++) {
+                env->free_global_ref(env, ((emacs_value*)arr->contents)[i]);
+            }
+        }
+        free(arr->contents);
+    }   
+    else {
+        int size = arr->sizes[0];
+        for (int i = 0; i < size; i++) {
+            free_array(env, arr->subarray[i]);
+        }
+        free(arr->subarray);
     }
-    free(array->contents);
-    free(array->sizes);
-    free(array);
+    free(arr->sizes);
+    free(arr);
 }
 
 // defun ref-array (arr coords)
@@ -168,7 +199,7 @@ static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
         pos[i] = env->extract_integer(env, nth);
     }
 
-    void *val = ref_array(array, pos);
+    void *val = ref_array(array, pos, 0);
     emacs_value result;
     if (array->type == INT) {
         result = env->make_integer(env, *((int*)val));
@@ -206,21 +237,21 @@ static emacs_value set_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     emacs_value val = args[2];
     if (array->type == INT) {
         int integer_val = env->extract_integer(env, val);
-        set_array(env, array, pos, &integer_val);
+        set_array(env, array, pos, &integer_val, 0);
     }
     else if (array->type == DOUBLE) {
         double double_val = env->extract_float(env, val);
-        set_array(env, array, pos, &double_val);
+        set_array(env, array, pos, &double_val, 0);
     }
     else if (array->type == STRING) {
         ptrdiff_t len;
         env->copy_string_contents(env, val, NULL, &len);
         char *string_val = (char*)malloc(len);
         env->copy_string_contents(env, val, string_val, &len);
-        set_array(env, array, pos, string_val);
+        set_array(env, array, pos, string_val, 0);
     }
     else { // EMACS_VALUE
-        set_array(env, array, pos, val);
+        set_array(env, array, pos, val, 0);
     }
     return val;
 }
