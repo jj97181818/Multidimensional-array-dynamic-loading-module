@@ -156,18 +156,17 @@ static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     Array *array = (Array*)(env->get_user_ptr(env, args[0]));
     
     // Get index
-    emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[1]);
-    int dim = env->extract_integer(env, safe_length);
-
+    int dim = array->dim;
     int pos[dim];
-    
+    emacs_value elements = args[1];
+    emacs_value Fcar = env->intern(env, "car");
+    emacs_value Fcdr = env->intern(env, "cdr");
     for (int i = 0; i < dim; i++) {
-        emacs_value index = env->make_integer(env, i);
-        emacs_value nth_args[] = {index, args[1]};
-        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
-        pos[i] = env->extract_integer(env, nth);
+        pos[i] = env->extract_integer(env, env->funcall(env, Fcar, 1, &elements));
+        elements = env->funcall(env, Fcdr, 1, &elements);
     }
 
+    // Get value
     void *val = ref_array(array, pos);
     emacs_value result;
     if (array->type == INT) {
@@ -189,18 +188,16 @@ static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
 // args[0]: arr, args[1]: coords, args[2]: val
 static emacs_value set_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data) {
     Array *array = (Array*)(env->get_user_ptr(env, args[0]));
-    
-    // Get index
-    emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[1]);
-    int dim = env->extract_integer(env, safe_length);
 
+    // Get index
+    int dim = array->dim;
     int pos[dim];
-    
+    emacs_value elements = args[1];
+    emacs_value Fcar = env->intern(env, "car");
+    emacs_value Fcdr = env->intern(env, "cdr");
     for (int i = 0; i < dim; i++) {
-        emacs_value index = env->make_integer(env, i);
-        emacs_value nth_args[] = {index, args[1]};
-        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
-        pos[i] = env->extract_integer(env, nth);
+        pos[i] = env->extract_integer(env, env->funcall(env, Fcar, 1, &elements));
+        elements = env->funcall(env, Fcdr, 1, &elements);
     }
 
     emacs_value val = args[2];
