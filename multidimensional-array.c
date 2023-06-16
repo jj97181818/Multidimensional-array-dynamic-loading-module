@@ -21,9 +21,12 @@ struct MultiDimArray {
 Array* make_array(Type type, int dim, int level, int *sizes, void *initial_val) {
     Array* array = malloc(sizeof(Array));
     array->type = type;
+    array->contents = NULL;
     array->dim = dim;
-    array->sizes = sizes;
+    array->sizes = malloc(dim * sizeof(int));
+    memcpy(array->sizes, sizes, dim * sizeof(int));
     array->subarray = NULL;
+    
     int size = sizes[level];
 
     if (level == dim - 1) {
@@ -101,10 +104,10 @@ void set_array(Array *array, int *index, void *val, int level) {
     }
 }
 
-void free_array(Array *arr) {
+void free_array(Array *arr, int index) {
     if (arr->subarray == NULL) {
         if (arr->type == STRING) {
-            int size = arr->sizes[0];
+            int size = arr->sizes[arr->dim - 1];
             for (int i = 0; i < size; i++) {
                 free(((char**)arr->contents)[i]);
             }
@@ -112,10 +115,11 @@ void free_array(Array *arr) {
         free(arr->contents);
     }
     else {
-        int size = arr->sizes[0];
+        int size = arr->sizes[index];
         for (int i = 0; i < size; i++) {
-            free_array(arr->subarray[i]);
+            free_array(arr->subarray[i], index + 1);
         }
+        free(arr->subarray);
     }
     free(arr->sizes);
     free(arr);
@@ -157,7 +161,7 @@ int main() {
 
     // test free_array
     clock_gettime(CLOCK_MONOTONIC, &start);
-    // free_array(int_array);
+    free_array(int_array, 0);
     clock_gettime(CLOCK_MONOTONIC, &end);
     double free_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
