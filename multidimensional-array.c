@@ -22,12 +22,16 @@ struct MultiDimArray {
     Array **subarray;
 };
 
+
 Array* make_nested_array(emacs_env *env, Type type, int dim, int level, int *sizes, void *initial_val) {
     Array* array = malloc(sizeof(Array));
     array->type = type;
+    array->contents = NULL;
     array->dim = dim;
-    array->sizes = sizes;
+    array->sizes = malloc(dim * sizeof(int));
+    memcpy(array->sizes, sizes, dim * sizeof(int));
     array->subarray = NULL;
+    
     int size = sizes[level];
 
     if (level == dim - 1) {
@@ -49,6 +53,9 @@ Array* make_nested_array(emacs_env *env, Type type, int dim, int level, int *siz
         else if (type == STRING) {
             array->contents = malloc(sizeof(char*) * size);
             for (int i = 0; i < size; i++) {
+                ((char**)array->contents)[i] = NULL;
+            }
+            for (int i = 0; i < size; i++) {
                 ((char**)array->contents)[i] = strdup((char*)initial_val);
             }
         }
@@ -68,6 +75,7 @@ Array* make_nested_array(emacs_env *env, Type type, int dim, int level, int *siz
     }
     return array;
 }
+
 
 Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_val) {
     Array *array = malloc(sizeof(Array));
@@ -135,28 +143,29 @@ void set_array(emacs_env *env, Array *array, int *index, void *val, int level) {
     }
 }
 
-void free_array_finalizer(void *arr) {
-    Array *array = (Array*)arr;
-    if (array->type == EMACS_VALUE) {
-        return;
-    }
-    if (array->subarray == NULL) {
-        if (array->type == STRING) {
-            int size = array->sizes[0];
+void free_subarray(Array *arr, int index) {
+    if (arr->subarray == NULL) {
+        if (arr->type == STRING) {
+            int size = arr->sizes[arr->dim - 1];
             for (int i = 0; i < size; i++) {
-                free(((char**)array->contents)[i]);
+                free(((char**)arr->contents)[i]);
             }
         }
-        free(array->contents);
+        free(arr->contents);
     }
     else {
-        int size = array->sizes[0];
+        int size = arr->sizes[index];
         for (int i = 0; i < size; i++) {
-            free_array_finalizer(array->subarray[i]);
+            free_subarray(arr->subarray[i], index + 1);
         }
+        free(arr->subarray);
     }
-    free(array->sizes);
-    free(array);
+    free(arr->sizes);
+}
+
+void free_array_finalizer(void *arr) {
+    free_subarray(arr, 0);
+    free(arr);
 }
 
 void free_array(emacs_env *env, Array *arr) {
