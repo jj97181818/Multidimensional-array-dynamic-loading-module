@@ -158,12 +158,12 @@ static emacs_value ref_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     // Get index
     int dim = array->dim;
     int pos[dim];
-    emacs_value elements = args[1];
-    emacs_value Fcar = env->intern(env, "car");
-    emacs_value Fcdr = env->intern(env, "cdr");
+
+    emacs_value vector = args[1];
+
     for (int i = 0; i < dim; i++) {
-        pos[i] = env->extract_integer(env, env->funcall(env, Fcar, 1, &elements));
-        elements = env->funcall(env, Fcdr, 1, &elements);
+        emacs_value element = env->vec_get(env, vector, i);
+        pos[i] = env->extract_integer(env, element);
     }
 
     // Get value
@@ -192,12 +192,12 @@ static emacs_value set_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_valu
     // Get index
     int dim = array->dim;
     int pos[dim];
-    emacs_value elements = args[1];
-    emacs_value Fcar = env->intern(env, "car");
-    emacs_value Fcdr = env->intern(env, "cdr");
+
+    emacs_value vector = args[1];
+
     for (int i = 0; i < dim; i++) {
-        pos[i] = env->extract_integer(env, env->funcall(env, Fcar, 1, &elements));
-        elements = env->funcall(env, Fcdr, 1, &elements);
+        emacs_value element = env->vec_get(env, vector, i);
+        pos[i] = env->extract_integer(env, element);
     }
 
     emacs_value val = args[2];
@@ -237,15 +237,12 @@ static emacs_value free_array_wrapper(emacs_env *env, ptrdiff_t nargs, emacs_val
 // args[0]: dims, args[1]: val
 static emacs_value make_array_wrapper (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data)
 {
-    emacs_value safe_length = env->funcall(env, env->intern (env, "safe-length"), 1, &args[0]);
-    int dim = env->extract_integer(env, safe_length);
+    ptrdiff_t dim = env->vec_size(env, args[0]);
 
     int *sizes = (int*)malloc(dim * sizeof(int));
     
     for (int i = 0; i < dim; i++) {
-        emacs_value index = env->make_integer(env, i);
-        emacs_value nth_args[] = {index, args[0]};
-        emacs_value nth = env->funcall (env, env->intern (env, "nth"), 2, nth_args);
+        emacs_value nth = env->vec_get (env, args[0], i);
         sizes[i] = env->extract_integer(env, nth);
     }
     
