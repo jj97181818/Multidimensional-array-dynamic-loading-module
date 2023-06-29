@@ -172,8 +172,8 @@ int main() {
     free_array(int_array);
 
     printf("make_array_time: %f seconds\n", make_array_time);
-    printf("set_array_time: %f seconds\n", set_array_time);
     printf("ref_array_time: %f seconds\n", ref_array_time);
+    printf("set_array_time: %f seconds\n", set_array_time);
 
     return 0;
 }
