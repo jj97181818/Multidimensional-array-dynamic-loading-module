@@ -114,8 +114,8 @@ void free_array(Array *array) {
 }
 
 int main() {
-    int dim = 6;
-    int sizes[] = {50, 20, 30, 40, 30, 40};
+    int dim = 7;
+    int sizes[] = {10,10,10,10,10,10,10};
     int int_val = 1;
 
     // test make_array
@@ -128,9 +128,21 @@ int main() {
 
     // test set_array
     int_val = 2;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < 100000; i++) {
-        set_array(int_array, (int[]){49, 19, 29, 39, 29, 39}, &int_val);
+     clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < 9; i++) {
+        for (int j = 0; j < 9; j++) {
+            for (int k = 0; k < 9; k++) {
+                for (int l = 0; l < 9; l++) {
+                    for (int m = 0; m < 9; m++) {
+                        for (int n = 0; n < 9; n++) {
+                            for (int o = 0; o < 9; o++) {
+                                set_array(int_array, (int[]){i,j,k,l,m,n,o}, &int_val);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     double set_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
@@ -138,9 +150,21 @@ int main() {
 
     // test ref_array
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < 100000; i++) {
-        int *p = (int *)ref_array(int_array, (int[]){49, 19, 29, 39, 29, 39});
-        int ans1 = *p;
+    for (int i = 0; i < 9; i++) {
+        for (int j = 0; j < 9; j++) {
+            for (int k = 0; k < 9; k++) {
+                for (int l = 0; l < 9; l++) {
+                    for (int m = 0; m < 9; m++) {
+                        for (int n = 0; n < 9; n++) {
+                            for (int o = 0; o < 9; o++) {
+                                int *p = (int *)ref_array(int_array, (int[]){i,j,k,l,m,n,o});
+                                int ans1 = *p;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     double ref_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
