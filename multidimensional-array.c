@@ -132,16 +132,16 @@ int main() {
     int int_val = 1;
 
     // test make_array
-     struct timespec start, end;
-     clock_gettime(CLOCK_MONOTONIC, &start);
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     Array *int_array = make_array(INT, dim, 0, sizes, &int_val);
-     clock_gettime(CLOCK_MONOTONIC, &end);
-     double make_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double make_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     
 
     // test set_array
     int_val = 2;
-     clock_gettime(CLOCK_MONOTONIC, &start);
+    clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < 9; i++) {
         for (int j = 0; j < 9; j++) {
             for (int k = 0; k < 9; k++) {
@@ -157,12 +157,12 @@ int main() {
             }
         }
     }
-     clock_gettime(CLOCK_MONOTONIC, &end);
-     double set_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double set_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
 
     // test ref_array
-     clock_gettime(CLOCK_MONOTONIC, &start);
+    clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < 9; i++) {
         for (int j = 0; j < 9; j++) {
             for (int k = 0; k < 9; k++) {
@@ -179,14 +179,14 @@ int main() {
             }
         }
     }
-     clock_gettime(CLOCK_MONOTONIC, &end);
-     double ref_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double ref_array_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
     free_array(int_array, 0);
 
-     printf("make_array_time: %f seconds\n", make_array_time);
-     printf("set_array_time: %f seconds\n", set_array_time);
-     printf("ref_array_time: %f seconds\n", ref_array_time);
+    printf("make_array_time: %f seconds\n", make_array_time);
+    printf("ref_array_time: %f seconds\n", ref_array_time);
+    printf("set_array_time: %f seconds\n", set_array_time);
 
     return 0;
 }
