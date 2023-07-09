@@ -129,7 +129,7 @@ void free_array(Array *arr, int index) {
 int main() {
     int dim = 7;
     int sizes[] = {10,10,10,10,10,10,10};
-    int int_val = 1;
+    int int_val = 0;
 
     // test make_array
     struct timespec start, end;
