@@ -35,15 +35,25 @@ Array* make_array(Type type, int dim, int *sizes, void *initial_val) {
     if (type == INT) {
         array->contents = malloc(sizeof(int) * total_size);
         int val = *((int*)initial_val);
-        for (int i = 0; i < total_size; i++) {
-            ((int*)array->contents)[i] = val;
+        if (val == 0) {
+            memset(array->contents, 0, sizeof(int) * total_size);
+        }
+        else {
+            for (int i = 0; i < total_size; i++) {
+                ((int*)array->contents)[i] = val;
+            }
         }
     }
     else if (type == DOUBLE) {
         array->contents = malloc(sizeof(double) * total_size);
         double val = *((double*)initial_val);
-        for (int i = 0; i < total_size; i++) {
-            ((double*)array->contents)[i] = val;
+        if (val == 0) {
+            memset(array->contents, 0, sizeof(double) * total_size);
+        }
+        else {
+            for (int i = 0; i < total_size; i++) {
+                ((double*)array->contents)[i] = val;
+            }
         }
     }
     else if (type == STRING) {
@@ -116,7 +126,7 @@ void free_array(Array *array) {
 int main() {
     int dim = 7;
     int sizes[] = {10,10,10,10,10,10,10};
-    int int_val = 1;
+    int int_val = 0;
 
     // test make_array
     struct timespec start, end;
