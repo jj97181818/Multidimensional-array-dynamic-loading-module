@@ -37,15 +37,25 @@ Array* make_array(emacs_env *env, Type type, int dim, int *sizes, void *initial_
     if (type == INT) {
         array->contents = malloc(sizeof(int) * total_size);
         int val = *((int*)initial_val);
-        for (int i = 0; i < total_size; i++) {
-            ((int*)array->contents)[i] = val;
+        if (val == 0) {
+            memset(array->contents, 0, sizeof(int) * total_size);
+        }
+        else {
+            for (int i = 0; i < total_size; i++) {
+                ((int*)array->contents)[i] = val;
+            }
         }
     }
     else if (type == DOUBLE) {
         array->contents = malloc(sizeof(double) * total_size);
         double val = *((double*)initial_val);
-        for (int i = 0; i < total_size; i++) {
-            ((double*)array->contents)[i] = val;
+        if (val == 0) {
+            memset(array->contents, 0, sizeof(double) * total_size);
+        }
+        else {
+            for (int i = 0; i < total_size; i++) {
+                ((double*)array->contents)[i] = val;
+            }
         }
     }
     else if (type == STRING) {
