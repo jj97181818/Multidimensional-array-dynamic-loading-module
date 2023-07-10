@@ -142,14 +142,16 @@ int main() {
     // test set_array
     int_val = 2;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < 9; i++) {
-        for (int j = 0; j < 9; j++) {
-            for (int k = 0; k < 9; k++) {
-                for (int l = 0; l < 9; l++) {
-                    for (int m = 0; m < 9; m++) {
-                        for (int n = 0; n < 9; n++) {
-                            for (int o = 0; o < 9; o++) {
-                                set_array(int_array, (int[]){i,j,k,l,m,n,o}, &int_val, 0);
+    for (int times = 0; times < 100; times++) {
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                for (int k = 0; k < 9; k++) {
+                    for (int l = 0; l < 9; l++) {
+                        for (int m = 0; m < 9; m++) {
+                            for (int n = 0; n < 9; n++) {
+                                for (int o = 0; o < 9; o++) {
+                                    set_array(int_array, (int[]){i,j,k,l,m,n,o}, &int_val, 0);
+                                }
                             }
                         }
                     }
@@ -163,15 +165,17 @@ int main() {
 
     // test ref_array
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < 9; i++) {
-        for (int j = 0; j < 9; j++) {
-            for (int k = 0; k < 9; k++) {
-                for (int l = 0; l < 9; l++) {
-                    for (int m = 0; m < 9; m++) {
-                        for (int n = 0; n < 9; n++) {
-                            for (int o = 0; o < 9; o++) {
-                                int *p = (int *)ref_array(int_array, (int[]){i,j,k,l,m,n,o}, 0);
-                                int ans1 = *p;
+    for (int times = 0; times < 100; times++) {
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                for (int k = 0; k < 9; k++) {
+                    for (int l = 0; l < 9; l++) {
+                        for (int m = 0; m < 9; m++) {
+                            for (int n = 0; n < 9; n++) {
+                                for (int o = 0; o < 9; o++) {
+                                    int *p = (int *)ref_array(int_array, (int[]){i,j,k,l,m,n,o}, 0);
+                                    int ans1 = *p;
+                                }
                             }
                         }
                     }
@@ -185,8 +189,8 @@ int main() {
     free_array(int_array, 0);
 
     printf("make_array_time: %f seconds\n", make_array_time);
-    printf("ref_array_time: %f seconds\n", ref_array_time);
-    printf("set_array_time: %f seconds\n", set_array_time);
+    printf("ref_array_time: %f seconds\n", ref_array_time / 100);
+    printf("set_array_time: %f seconds\n", set_array_time / 100);
 
     return 0;
 }
